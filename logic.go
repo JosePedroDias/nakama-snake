@@ -113,6 +113,10 @@ func (g *SnakeGame) CanChangeDirection(newDir Point) bool {
 	if head.X < 0 || head.Y < 0 || head.X >= g.W || head.Y >= g.H {
 		return false
 	}
+	cell := g.Board[head.X][head.Y]
+	if cell == CellSnake {
+		return false
+	}
 	return (g.Direction.X+newDir.X != 0) || (g.Direction.Y+newDir.Y != 0)
 }
 
@@ -120,13 +124,26 @@ func (g *SnakeGame) DisplayBoard() {
 	fmt.Printf("%#v\n", g.Direction)
 	for y := 0; y < g.H; y++ {
 		for x := 0; x < g.W; x++ {
+			s := ". "
 			if g.Board[x][y] == CellSnake {
-				fmt.Print("# ")
+				s0 := g.Snake[0]
+				if s0.X == x && s0.Y == y {
+					if g.Direction.X == -1 {
+						s = "< "
+					} else if g.Direction.X == 1 {
+						s = "> "
+					} else if g.Direction.Y == -1 {
+						s = "˄ "
+					} else if g.Direction.Y == 1 {
+						s = "v "
+					}
+				} else {
+					s = "# "
+				}
 			} else if g.Board[x][y] == CellFood {
-				fmt.Print("O ")
-			} else {
-				fmt.Print(". ")
+				s = "O "
 			}
+			fmt.Print(s)
 		}
 		fmt.Println()
 	}
@@ -140,12 +157,17 @@ func main() {
 
 	moves := []Point{{0, 1}, {1, 0}, {0, -1}, {-1, 0}} // Right, down, left, up
 
-	for i := 0; i < 500; i++ {
+	for {
 		potMoves := make([]Point, 0)
 		for _, dir := range moves {
 			if game.CanChangeDirection(dir) {
 				potMoves = append(potMoves, dir)
 			}
+		}
+
+		if len(potMoves) == 0 {
+			fmt.Println("Game Over! (stuck)")
+			break
 		}
 		game.Direction = potMoves[rand.Intn(len(potMoves))]
 		if !game.Move() {
