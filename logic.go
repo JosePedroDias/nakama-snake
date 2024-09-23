@@ -15,21 +15,23 @@ const (
 const INITIAL_SNAKE_SIZE = 2
 
 type Point struct {
-	X, Y int
+	X int `json:"x"`
+	Y int `json:"y"`
 }
 
 type IntArr2D = [][]int
 type SnakeBody = []Point
 type Snake struct {
-	Body      SnakeBody
-	Direction Point
+	Body      SnakeBody `json:"body"`
+	Direction Point     `json:"direction"`
 }
 
 type SnakeGame struct {
-	Board   IntArr2D
-	Snakes  []*Snake
-	HasFood bool
-	W, H    int
+	Board   IntArr2D `json:"board"`
+	Snakes  []*Snake `json:"snakes"`
+	HasFood bool     `json:"hasFood"`
+	W       int      `json:"w"`
+	H       int      `json:"h"`
 }
 
 func NewSnakeGame(W, H, numSnakes int) *SnakeGame {
@@ -147,6 +149,9 @@ func (g *SnakeGame) GetWhichSnake(pos Point) int {
 }
 
 func (g *SnakeGame) DisplayBoard() {
+	//jsonS, _ := json.Marshal(g)
+	//fmt.Printf("%s\n", jsonS)
+
 	for y := 0; y < g.H; y++ {
 		for x := 0; x < g.W; x++ {
 			s := ". "
