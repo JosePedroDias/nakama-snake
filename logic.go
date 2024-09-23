@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"math/rand"
-	"time"
 )
 
 const (
@@ -27,53 +26,85 @@ type Snake struct {
 }
 
 type SnakeGame struct {
-	Board   IntArr2D `json:"board"`
-	Snakes  []*Snake `json:"snakes"`
-	HasFood bool     `json:"hasFood"`
-	W       int      `json:"w"`
-	H       int      `json:"h"`
+	W        int      `json:"w"`
+	H        int      `json:"h"`
+	Board    IntArr2D `json:"board"`
+	Snakes   []*Snake `json:"snakes"`
+	SnakeIds []string `json:"snakeIds"`
+	HasFood  bool     `json:"hasFood"`
 }
 
-func NewSnakeGame(W, H, numSnakes int) *SnakeGame {
+var moves []Point
+
+func newSnakeGame(W, H, numSnakes int) *SnakeGame {
+	moves = []Point{{0, 1}, {1, 0}, {0, -1}, {-1, 0}} // right, down, left, up
+
 	game := &SnakeGame{
-		W:      W,
-		H:      H,
-		Board:  make([][]int, W),
-		Snakes: make([]*Snake, 0),
+		W:        W,
+		H:        H,
+		Board:    make([][]int, W),
+		Snakes:   make([]*Snake, 0),
+		SnakeIds: make([]string, 0),
 	}
 
 	for i := range game.Board {
 		game.Board[i] = make([]int, H)
 	}
 
-	freeCells := game.getFreeCells()
-
 	for snI := 0; snI < numSnakes; snI++ {
-		// use one freeCell, get its value and remove it from the slice
-		cellI := rand.Intn(len(freeCells))
-		pos0 := freeCells[cellI]
-		freeCells = append(freeCells[:cellI], freeCells[cellI+1:]...)
-
-		snake := &Snake{
-			Body:      make(SnakeBody, 0),
-			Direction: Point{0, 1}, // right
-		}
-		for snBodyI := 0; snBodyI < INITIAL_SNAKE_SIZE; snBodyI++ {
-			pos := Point{pos0.X - snBodyI, pos0.Y}
-			// avoid placing body out of bounds (hacky as it can be non-empty)
-			if pos0.X == 0 {
-				pos.X = pos0.X + snBodyI
-			}
-			game.Board[pos.X][pos.Y] = CellSnake
-			snake.Body = append(snake.Body, pos)
-		}
-
-		game.Snakes = append(game.Snakes, snake)
+		game.addSnake()
 	}
 
 	game.placeFood()
 
 	return game
+}
+
+func (g *SnakeGame) addSnake() {
+	freeCells := g.getFreeCells()
+
+	var pos0 Point
+	var pos1 Point
+	var cellI int
+
+	for {
+		cellI = rand.Intn(len(freeCells))
+		pos0 = freeCells[cellI]
+		pos1 = Point{pos0.X - 1, pos0.Y}
+
+		if pos1.X < 0 {
+			continue
+		}
+
+		value1 := g.Board[pos1.X][pos1.Y]
+		if value1 != CellEmpty {
+			continue
+		}
+
+		break
+	}
+
+	snake := &Snake{
+		Body:      make(SnakeBody, 0),
+		Direction: Point{0, 1}, // right
+	}
+	for snBodyI := 0; snBodyI < INITIAL_SNAKE_SIZE; snBodyI++ {
+		pos := Point{pos0.X - snBodyI, pos0.Y}
+		g.Board[pos.X][pos.Y] = CellSnake
+		snake.Body = append(snake.Body, pos)
+	}
+
+	g.Snakes = append(g.Snakes, snake)
+}
+
+func (g *SnakeGame) removeSnake(snI int) {
+	snake := g.Snakes[snI]
+
+	for _, snPos := range snake.Body {
+		g.Board[snPos.X][snPos.Y] = CellEmpty
+	}
+
+	g.Snakes = append(g.Snakes[:snI], g.Snakes[snI+1:]...)
 }
 
 func (g *SnakeGame) getFreeCells() []Point {
@@ -101,9 +132,9 @@ func (g *SnakeGame) placeFood() {
 	g.HasFood = true
 }
 
-func (g *SnakeGame) CanChangeDirection(snake *Snake, newDir Point) bool {
+func (g *SnakeGame) canChangeDirection(snake *Snake, dir Point) bool {
 	head_ := snake.Body[0]
-	head := Point{head_.X + newDir.X, head_.Y + newDir.Y}
+	head := Point{head_.X + dir.X, head_.Y + dir.Y}
 	if head.X < 0 || head.Y < 0 || head.X >= g.W || head.Y >= g.H {
 		return false
 	}
@@ -111,10 +142,10 @@ func (g *SnakeGame) CanChangeDirection(snake *Snake, newDir Point) bool {
 	if cell == CellSnake {
 		return false
 	}
-	return (snake.Direction.X+newDir.X != 0) || (snake.Direction.Y+newDir.Y != 0)
+	return (snake.Direction.X+dir.X != 0) || (snake.Direction.Y+dir.Y != 0)
 }
 
-func (g *SnakeGame) Move(snake *Snake) {
+func (g *SnakeGame) move(snake *Snake) {
 	head := snake.Body[0]
 	newHead := Point{head.X + snake.Direction.X, head.Y + snake.Direction.Y}
 
@@ -137,7 +168,7 @@ func (g *SnakeGame) Move(snake *Snake) {
 	}
 }
 
-func (g *SnakeGame) GetWhichSnake(pos Point) int {
+func (g *SnakeGame) getWhichSnake(pos Point) int {
 	for snI, snake := range g.Snakes {
 		for _, snPos := range snake.Body {
 			if snPos.X == pos.X && snPos.Y == pos.Y {
@@ -148,7 +179,40 @@ func (g *SnakeGame) GetWhichSnake(pos Point) int {
 	panic("should not happen!")
 }
 
-func (g *SnakeGame) DisplayBoard() {
+func (g *SnakeGame) validateDirection(snake *Snake, dir Point) bool {
+	if dir.X == 0 && (dir.Y == -1 || dir.Y == 1) {
+		return g.canChangeDirection(snake, dir)
+	}
+
+	if dir.Y == 0 && (dir.X == -1 || dir.X == 1) {
+		return g.canChangeDirection(snake, dir)
+	}
+
+	return false
+}
+
+//lint:ignore U1000 optional method
+func (g *SnakeGame) getValidDirections(snake *Snake) []Point {
+	potMoves := make([]Point, 0)
+	for _, dir := range moves {
+		if g.canChangeDirection(snake, dir) {
+			potMoves = append(potMoves, dir)
+		}
+	}
+	return potMoves
+}
+
+func (g *SnakeGame) getSnakeIndexFromId(id string) int {
+	for snI := 0; snI < len(g.SnakeIds); snI++ {
+		if g.SnakeIds[snI] == id {
+			return snI
+		}
+	}
+	panic("snake having this id was not found!")
+}
+
+//lint:ignore U1000 optional method
+func (g *SnakeGame) displayBoard() {
 	//jsonS, _ := json.Marshal(g)
 	//fmt.Printf("%s\n", jsonS)
 
@@ -157,7 +221,7 @@ func (g *SnakeGame) DisplayBoard() {
 			s := ". "
 			if g.Board[x][y] == CellSnake {
 				//s = "# "
-				s = fmt.Sprintf("%d ", g.GetWhichSnake(Point{x, y})+1)
+				s = fmt.Sprintf("%d ", g.getWhichSnake(Point{x, y})+1)
 			} else if g.Board[x][y] == CellFood {
 				s = "O "
 			}
@@ -168,34 +232,33 @@ func (g *SnakeGame) DisplayBoard() {
 	fmt.Println()
 }
 
+/*
 func main() {
-	game := NewSnakeGame(10, 10, 2)
-
-	game.DisplayBoard()
-
-	moves := []Point{{0, 1}, {1, 0}, {0, -1}, {-1, 0}} // right, down, left, up
+	game := newSnakeGame(10, 10, 2)
+	game.displayBoard()
 
 outer:
-	//for i := 0; i < 3; i++ {
 	for {
-		for snI, snake := range game.Snakes {
-			potMoves := make([]Point, 0)
-			for _, dir := range moves {
-				if game.CanChangeDirection(snake, dir) {
-					potMoves = append(potMoves, dir)
-				}
-			}
+		//for i := 0; i < 3; i++ {
 
+		// if i == 0 {
+		// 	game.addSnake()
+		// } else if i == 2 {
+		// 	game.removeSnake(0)
+		// }
+
+		for snI, snake := range game.Snakes {
+			potMoves := game.getValidDirections(snake)
 			if len(potMoves) == 0 {
 				fmt.Printf("Game over: snake #%d got stuck!\n", snI+1)
 				break outer
 			}
-
 			snake.Direction = potMoves[rand.Intn(len(potMoves))]
-			game.Move(snake)
+			game.move(snake)
 		}
 
-		game.DisplayBoard()
+		game.displayBoard()
 		time.Sleep(100 * time.Millisecond)
 	}
 }
+*/
