@@ -5,14 +5,16 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"math/rand"
 
 	"github.com/heroiclabs/nakama-common/runtime"
 )
 
-const TICK_RATE = 4 // number of ticks the server runs per second
-const MIN_PLAYERS = 2
-const W = 10
-const H = 10
+const TICK_RATE = 3 // number of ticks the server runs per second
+const W = 30
+const H = 20
+
+const NUM_BOTS = 2
 
 type SMatchLabel struct {
 	Open  int `json:"open"`
@@ -56,6 +58,11 @@ func (m *SMatch) MatchInit(ctx context.Context, logger runtime.Logger, db *sql.D
 	labelBytes, err := json.Marshal(state.label)
 	if err == nil {
 		label = string(labelBytes)
+	}
+
+	for botI := 0; botI < NUM_BOTS; botI++ {
+		state.snakeGame.addSnake()
+		state.snakeGame.SnakeIds = append(state.snakeGame.SnakeIds, "")
 	}
 
 	return state, TICK_RATE, label
@@ -129,7 +136,18 @@ func (m *SMatch) MatchLoop(ctx context.Context, logger runtime.Logger, db *sql.D
 		return state
 	}
 
-	// accept changes of direction
+	// accept changes of direction from bots
+	for snI, snake := range state.snakeGame.Snakes {
+		if state.snakeGame.SnakeIds[snI] != "" {
+			continue
+		}
+		potMoves := state.snakeGame.getValidDirections(snake)
+		if len(potMoves) > 0 {
+			snake.Direction = potMoves[rand.Intn(len(potMoves))]
+		}
+	}
+
+	// accept changes of direction from players
 	for _, message := range messages {
 		senderUserId := message.GetUserId()
 		op := message.GetOpCode()
