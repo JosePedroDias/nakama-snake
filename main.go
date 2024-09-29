@@ -13,7 +13,7 @@ const RPC_JOIN_OR_CREATE_NAME = "snake_match"
 const RPC_KILL_MATCH_NAME = "snake_kill"
 
 func InitModule(ctx context.Context, logger runtime.Logger, db *sql.DB, nk runtime.NakamaModule, initializer runtime.Initializer) error {
-	logger.Info("setting up tic-tac-toe...")
+	logger.Info("setting up snake...")
 
 	err := initializer.RegisterMatch(MODULE_NAME, newMatch)
 	if err != nil {
